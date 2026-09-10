@@ -10,6 +10,8 @@
 // @grant        GM_setValue
 // @grant        GM_addStyle
 // @run-at       document-end
+// @updateURL    https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/refs/heads/main/Memrise%20AI%20Helper.js
+// @downloadURL  https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/refs/heads/main/Memrise%20AI%20Helper.js
 // ==/UserScript==
 
 (function () {
