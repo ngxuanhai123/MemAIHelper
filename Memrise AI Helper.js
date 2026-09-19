@@ -14,8 +14,8 @@
 // @connect      add-tuvung.ngxuanhai123.workers.dev
 // @connect      *
 // @run-at       document-end
-// @updateURL    https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/refs/heads/main/Memrise%20AI%20Helper.js
-// @downloadURL  https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/refs/heads/main/Memrise%20AI%20Helper.js
+// @updateURL    https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/main/Memrise%20AI%20Helper.js
+// @downloadURL  https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/main/Memrise%20AI%20Helper.js
 // ==/UserScript==
 
 (function () {
