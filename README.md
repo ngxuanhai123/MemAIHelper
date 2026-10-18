@@ -81,7 +81,7 @@ Bạn có thể chỉnh sửa các thiết lập ngay trong giao diện web (b�
 
 ```javascript
 // URL Backend Cloudflare Worker xử lý dịch thuật
-const DEFAULT_WORKER_URL = "https://add-tuvung.ngxuanhai123.workers.dev/";
+const DEFAULT_WORKER_URL = "https://ai-free.ngxuanhai123.workers.dev/add-tuvung";
 
 // Từ khóa lưu cấu hình toàn cục áp dụng cho toàn bộ domain
 const GLOBAL_KEY = "global_domain";

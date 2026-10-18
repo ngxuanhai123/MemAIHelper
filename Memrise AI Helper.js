@@ -11,7 +11,7 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
-// @connect      add-tuvung.ngxuanhai123.workers.dev
+// @connect      ai-free.ngxuanhai123.workers.dev
 // @connect      *
 // @run-at       document-end
 // @updateURL    https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/main/Memrise%20AI%20Helper.js
@@ -132,7 +132,7 @@
     GM_addStyle(css);
 
     // ==================== CONSTANTS & DEFAULTS ====================
-    const DEFAULT_WORKER_URL = "https://add-tuvung.ngxuanhai123.workers.dev/";
+    const DEFAULT_WORKER_URL = "https://ai-free.ngxuanhai123.workers.dev/add-tuvung";
     const GLOBAL_KEY = "global_domain";
 
     // Danh sách selectors đa dạng cho Memrise (cả modern lẫn classic) và Duolingo
