@@ -11,6 +11,7 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
+// @connect      ai-no-free.ngxuanhai123.workers.dev
 // @connect      ai-free.ngxuanhai123.workers.dev
 // @connect      *
 // @run-at       document-end
@@ -37,32 +38,53 @@
         #memrise-helper-overlay {
             position: fixed; bottom: 30px; right: 30px;
             width: 320px; min-height: 100px; resize: both; overflow: hidden; min-width: 250px;
-            background-color: #ffffff; border: 1px solid #e0e0e0;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 1px 8px rgba(0, 0, 0, 0.08);
-            color: #2d3436; padding: 0; border-radius: 16px;
+            background-color: #ffffff; border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 1px 8px rgba(0, 0, 0, 0.05);
+            color: #0f172a; padding: 0; border-radius: 16px;
             z-index: 2147483647;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            font-family: 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             line-height: 1.6; display: flex; flex-direction: column;
             transition: opacity 0.2s ease, transform 0.2s ease;
         }
         #memrise-helper-overlay.hidden { display: none !important; }
 
         .overlay-header {
-            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
-            color: #636e72; background: #f1f2f6; padding: 10px 15px;
-            cursor: move; user-select: none; border-bottom: 1px solid #dfe6e9; flex-shrink: 0; white-space: nowrap;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+            color: #64748b; background: #f8fafc; padding: 10px 15px;
+            cursor: move; user-select: none; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; white-space: nowrap;
             display: flex; justify-content: space-between; align-items: center;
         }
         #overlay-refresh-btn, #overlay-settings-btn, #overlay-pick-btn {
-            font-size: 18px; cursor: pointer; color: #636e72; padding: 0 6px; transition: all 0.25s ease;
+            font-size: 18px; cursor: pointer; color: #64748b; padding: 0 6px; transition: all 0.2s ease;
         }
-        #overlay-refresh-btn:hover { color: #0984e3; transform: rotate(180deg); }
-        #overlay-settings-btn:hover, #overlay-pick-btn:hover { color: #0984e3; transform: scale(1.15); }
+        #overlay-refresh-btn:hover { color: #2563eb; transform: rotate(180deg); }
+        #overlay-settings-btn:hover, #overlay-pick-btn:hover { color: #2563eb; transform: scale(1.15); }
 
-        .overlay-content-wrapper { padding: 18px; overflow-y: auto; flex-grow: 1; max-height: 400px; }
-        .overlay-main-meaning { font-size: 20px; font-weight: 800; color: #00b894; margin-bottom: 12px; line-height: 1.3; }
-        .overlay-sub-detail { font-size: 13px; color: #636e72; background: #f8f9fa; padding: 12px; border-radius: 10px; border-left: 4px solid #fdcb6e; }
-        .overlay-sub-detail strong, .overlay-sub-detail b { color: #2d3436; font-weight: 700; }
+        .overlay-content-wrapper { padding: 16px; overflow-y: auto; flex-grow: 1; max-height: 400px; }
+        .overlay-main-meaning { font-size: 19px; font-weight: 800; color: #059669; margin-bottom: 10px; line-height: 1.3; }
+        .overlay-sub-detail { font-size: 13px; color: #475569; background: #f8fafc; padding: 12px; border-radius: 10px; border-left: 4px solid #2563eb; }
+        .overlay-sub-detail strong, .overlay-sub-detail b { color: #0f172a; font-weight: 700; }
+
+        @media (prefers-color-scheme: dark) {
+            #memrise-helper-overlay {
+                background-color: #131d2e;
+                border-color: #1e293b;
+                color: #f8fafc;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            }
+            .overlay-header {
+                background: #090d16;
+                border-bottom-color: #1e293b;
+                color: #94a3b8;
+            }
+            .overlay-main-meaning { color: #10b981; }
+            .overlay-sub-detail {
+                background: #182438;
+                border-left-color: #38bdf8;
+                color: #cbd5e1;
+            }
+            .overlay-sub-detail strong, .overlay-sub-detail b { color: #f8fafc; }
+        }
 
         /* --- PICKER MENU --- */
         .memrise-picker-menu {
@@ -132,7 +154,9 @@
     GM_addStyle(css);
 
     // ==================== CONSTANTS & DEFAULTS ====================
-    const DEFAULT_WORKER_URL = "https://ai-free.ngxuanhai123.workers.dev/add-tuvung";
+    const DEFAULT_WORKER_URL = "https://ai-no-free.ngxuanhai123.workers.dev/v1/chat/completions";
+    const DEFAULT_AI_MODEL = "anhyeu00m/claude-fable-5";
+    const DEFAULT_AUTH_KEY = "Ai@123";
     const GLOBAL_KEY = "global_domain";
 
     // Danh sách selectors đa dạng cho Memrise (cả modern lẫn classic) và Duolingo
@@ -349,12 +373,39 @@
     // ==================== API FETCH (GM_xmlhttpRequest VƯỢT CSP/CORS) ====================
     function apiFetch(payload) {
         return new Promise((resolve, reject) => {
+            const isAiNoFree = workerUrl.includes('ai-no-free');
+            let reqData = payload;
+            let reqHeaders = { 'Content-Type': 'application/json' };
+
+            if (isAiNoFree) {
+                reqHeaders['Authorization'] = `Bearer ${DEFAULT_AUTH_KEY}`;
+                const userPrompt = payload.engText 
+                    ? `Dịch sang tiếng Việt cho từ/câu: "${payload.indoText}" (Ngữ cảnh tiếng Anh: "${payload.engText}"). Định dạng: **Nghĩa chính**, kèm theo giải thích hoặc ví dụ ngắn gọn.`
+                    : `Dịch sang tiếng Việt cho từ/câu: "${payload.indoText}". Định dạng: **Nghĩa chính**, kèm theo giải thích hoặc ví dụ ngắn gọn.`;
+                reqData = {
+                    model: DEFAULT_AI_MODEL,
+                    messages: [
+                        { role: "system", content: "Bạn là trợ lý dịch thuật song ngữ cho Memrise và Duolingo. Trả về kết quả: **nghĩa chính in đậm**, bên dưới là giải thích hoặc ví dụ ngắn gọn." },
+                        { role: "user", content: userPrompt }
+                    ],
+                    temperature: 0.3
+                };
+            }
+
+            const parseResponse = (rawText) => {
+                const parsed = JSON.parse(rawText);
+                if (parsed.choices && parsed.choices.length > 0 && parsed.choices[0].message) {
+                    return { result: parsed.choices[0].message.content };
+                }
+                return parsed;
+            };
+
             if (typeof GM_xmlhttpRequest !== 'undefined') {
                 GM_xmlhttpRequest({
                     method: 'POST',
                     url: workerUrl,
-                    headers: { 'Content-Type': 'application/json' },
-                    data: JSON.stringify(payload),
+                    headers: reqHeaders,
+                    data: JSON.stringify(reqData),
                     timeout: 20000,
                     onload: (res) => {
                         try {
@@ -362,7 +413,7 @@
                                 reject(new Error('HTTP ' + res.status));
                                 return;
                             }
-                            resolve(JSON.parse(res.responseText));
+                            resolve(parseResponse(res.responseText));
                         } catch (e) {
                             reject(new Error('Lỗi giải mã JSON: ' + e.message));
                         }
@@ -374,14 +425,14 @@
                 // Fallback nếu môi trường không có GM_xmlhttpRequest
                 fetch(workerUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    headers: reqHeaders,
+                    body: JSON.stringify(reqData)
                 })
                 .then(res => {
                     if (!res.ok) throw new Error('HTTP ' + res.status);
-                    return res.json();
+                    return res.text();
                 })
-                .then(resolve)
+                .then(text => resolve(parseResponse(text)))
                 .catch(reject);
             }
         });
