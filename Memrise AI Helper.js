@@ -1,4 +1,4 @@
-// ==UserScript==
+﻿// ==UserScript==
 // @name         Memrise AI Helper - Tampermonkey
 // @namespace    https://github.com
 // @version      2.0
@@ -410,6 +410,26 @@
                     onload: (res) => {
                         try {
                             if (res.status < 200 || res.status >= 300) {
+                                if (workerUrl.includes('ai-no-free')) {
+                                    const fallbackUrl = 'https://ai-free.ngxuanhai123.workers.dev/v1/chat/completions';
+                                    GM_xmlhttpRequest({
+                                        method: 'POST',
+                                        url: fallbackUrl,
+                                        headers: { 'Content-Type': 'application/json' },
+                                        data: JSON.stringify(reqData),
+                                        timeout: 20000,
+                                        onload: (fbRes) => {
+                                            if (fbRes.status >= 200 && fbRes.status < 300) {
+                                                resolve(parseResponse(fbRes.responseText));
+                                            } else {
+                                                reject(new Error('HTTP ' + fbRes.status));
+                                            }
+                                        },
+                                        onerror: () => reject(new Error('HTTP ' + res.status)),
+                                        ontimeout: () => reject(new Error('HTTP ' + res.status))
+                                    });
+                                    return;
+                                }
                                 reject(new Error('HTTP ' + res.status));
                                 return;
                             }
