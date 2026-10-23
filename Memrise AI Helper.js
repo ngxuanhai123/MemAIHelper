@@ -155,7 +155,7 @@
 
     // ==================== CONSTANTS & DEFAULTS ====================
     const DEFAULT_WORKER_URL = "https://ai-no-free.ngxuanhai123.workers.dev/v1/chat/completions";
-    const DEFAULT_AI_MODEL = "anhyeu00m/claude-fable-5";
+    const DEFAULT_AI_MODEL = "tranhieu13102003/gpt-6-luna";
     const DEFAULT_AUTH_KEY = "Ai@123";
     const GLOBAL_KEY = "global_domain";
 

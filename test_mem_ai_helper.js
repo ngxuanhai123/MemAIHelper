@@ -45,10 +45,10 @@ async function runTests() {
   // TEST 3: Cấu hình mặc định AI Gateway mới
   try {
     const hasNewEndpoint = content.includes('ai-no-free.ngxuanhai123.workers.dev');
-    const hasModel = content.includes('anhyeu00m/claude-fable-5') || content.includes('claude-fable-5');
+    const hasModel = content.includes('tranhieu13102003/gpt-6-luna') || content.includes('gpt-6-luna');
     const hasAuth = content.includes('Ai@123');
     const passed = hasNewEndpoint && hasModel && hasAuth;
-    recordResult('3. Cấu hình AI Gateway mới (ai-no-free, claude-fable-5, Ai@123)', passed, `ai-no-free: ${hasNewEndpoint}, model: ${hasModel}, auth: ${hasAuth}`);
+    recordResult('3. Cấu hình AI Gateway mới (ai-no-free, gpt-6-luna, Ai@123)', passed, `ai-no-free: ${hasNewEndpoint}, model: ${hasModel}, auth: ${hasAuth}`);
   } catch (e) {
     recordResult('3. Cấu hình AI Gateway mới', false, e.message);
   }
@@ -64,7 +64,7 @@ async function runTests() {
         'Authorization': 'Bearer Ai@123'
       },
       body: JSON.stringify({
-        model: 'anhyeu00m/claude-fable-5',
+        model: 'tranhieu13102003/gpt-6-luna',
         messages: [
           { role: 'system', content: 'Bạn là trợ lý dịch thuật song ngữ cho Memrise và Duolingo. Trả về kết quả: **nghĩa chính**, bên dưới là giải thích ngắn gọn.' },
           { role: 'user', content: prompt }
