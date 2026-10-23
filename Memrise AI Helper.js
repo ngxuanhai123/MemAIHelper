@@ -11,7 +11,6 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
-// @connect      ai-no-free.ngxuanhai123.workers.dev
 // @connect      ai-free.ngxuanhai123.workers.dev
 // @connect      *
 // @run-at       document-end
@@ -154,7 +153,7 @@
     GM_addStyle(css);
 
     // ==================== CONSTANTS & DEFAULTS ====================
-    const DEFAULT_WORKER_URL = "https://ai-no-free.ngxuanhai123.workers.dev/v1/chat/completions";
+    const DEFAULT_WORKER_URL = "https://ai-free.ngxuanhai123.workers.dev/v1/chat/completions";
     const DEFAULT_AI_MODEL = "tranhieu13102003/gpt-6-luna";
     const DEFAULT_AUTH_KEY = "Ai@123";
     const GLOBAL_KEY = "global_domain";
@@ -373,17 +372,14 @@
     // ==================== API FETCH (GM_xmlhttpRequest VƯỢT CSP/CORS) ====================
     function apiFetch(payload) {
         return new Promise((resolve, reject) => {
-            const isAiNoFree = workerUrl.includes('ai-no-free');
             let reqData = payload;
             let reqHeaders = { 'Content-Type': 'application/json' };
 
-            if (isAiNoFree) {
-                reqHeaders['Authorization'] = `Bearer ${DEFAULT_AUTH_KEY}`;
+            if (payload.indoText || payload.engText) {
                 const userPrompt = payload.engText 
                     ? `Dịch sang tiếng Việt cho từ/câu: "${payload.indoText}" (Ngữ cảnh tiếng Anh: "${payload.engText}"). Định dạng: **Nghĩa chính**, kèm theo giải thích hoặc ví dụ ngắn gọn.`
                     : `Dịch sang tiếng Việt cho từ/câu: "${payload.indoText}". Định dạng: **Nghĩa chính**, kèm theo giải thích hoặc ví dụ ngắn gọn.`;
                 reqData = {
-                    model: DEFAULT_AI_MODEL,
                     messages: [
                         { role: "system", content: "Bạn là trợ lý dịch thuật song ngữ cho Memrise và Duolingo. Trả về kết quả: **nghĩa chính in đậm**, bên dưới là giải thích hoặc ví dụ ngắn gọn." },
                         { role: "user", content: userPrompt }
@@ -410,26 +406,6 @@
                     onload: (res) => {
                         try {
                             if (res.status < 200 || res.status >= 300) {
-                                if (workerUrl.includes('ai-no-free')) {
-                                    const fallbackUrl = 'https://ai-free.ngxuanhai123.workers.dev/v1/chat/completions';
-                                    GM_xmlhttpRequest({
-                                        method: 'POST',
-                                        url: fallbackUrl,
-                                        headers: { 'Content-Type': 'application/json' },
-                                        data: JSON.stringify(reqData),
-                                        timeout: 20000,
-                                        onload: (fbRes) => {
-                                            if (fbRes.status >= 200 && fbRes.status < 300) {
-                                                resolve(parseResponse(fbRes.responseText));
-                                            } else {
-                                                reject(new Error('HTTP ' + fbRes.status));
-                                            }
-                                        },
-                                        onerror: () => reject(new Error('HTTP ' + res.status)),
-                                        ontimeout: () => reject(new Error('HTTP ' + res.status))
-                                    });
-                                    return;
-                                }
                                 reject(new Error('HTTP ' + res.status));
                                 return;
                             }
