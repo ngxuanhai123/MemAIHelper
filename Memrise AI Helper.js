@@ -12,7 +12,6 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
 // @connect      ai-free.ngxuanhai123.workers.dev
-// @connect      *
 // @run-at       document-end
 // @updateURL    https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/main/Memrise%20AI%20Helper.js
 // @downloadURL  https://raw.githubusercontent.com/ngxuanhai123/MemAIHelper/main/Memrise%20AI%20Helper.js
@@ -155,8 +154,43 @@
     // ==================== CONSTANTS & DEFAULTS ====================
     const DEFAULT_WORKER_URL = "https://ai-free.ngxuanhai123.workers.dev/v1/chat/completions";
     const DEFAULT_AI_MODEL = "tranhieu13102003/gpt-6-luna";
-    const DEFAULT_AUTH_KEY = "Ai@123";
     const GLOBAL_KEY = "global_domain";
+
+    function isValidHttpsUrl(rawUrl) {
+        try {
+            return new URL(String(rawUrl || '').trim()).protocol === 'https:';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function escapeHtmlSafe(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function sanitizeWorkerResponseHtml(raw) {
+        const doc = new DOMParser().parseFromString(String(raw || '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'), 'text/html');
+        const allowed = new Set(['b', 'strong', 'br', 'small', 'i', 'em']);
+        const serialize = (node) => {
+            if (node.nodeType === 3) return escapeHtmlSafe(node.textContent);
+            if (node.nodeType !== 1) return '';
+            const tag = node.tagName.toLowerCase();
+            if (tag === 'script' || tag === 'style' || tag === 'iframe' || tag === 'svg') return '';
+            const inner = Array.from(node.childNodes).map(serialize).join('');
+            if (tag === 'br') return '<br>';
+            if (allowed.has(tag)) return `<${tag}>${inner}</${tag}>`;
+            return inner;
+        };
+        return { doc, sanitize: serialize };
+    }
+
+    let overlayDragCleanup = null;
+    let overlayResizeObserver = null;
 
     // Danh sách selectors đa dạng cho Memrise (cả modern lẫn classic) và Duolingo
     const SITE_PRESETS = {
@@ -335,7 +369,13 @@
         let retries = 0;
         return new Promise(resolve => {
             const check = () => {
-                const elements = document.querySelectorAll(selector);
+                let elements;
+                try {
+                    elements = document.querySelectorAll(selector);
+                } catch (_) {
+                    resolve(null);
+                    return;
+                }
                 if (elements.length === 0) {
                     if (retries < maxRetries) {
                         retries++;
@@ -372,6 +412,10 @@
     // ==================== API FETCH (GM_xmlhttpRequest VƯỢT CSP/CORS) ====================
     function apiFetch(payload) {
         return new Promise((resolve, reject) => {
+            if (!isValidHttpsUrl(workerUrl)) {
+                reject(new Error('URL Worker không hợp lệ (chỉ chấp nhận HTTPS)'));
+                return;
+            }
             let reqData = payload;
             let reqHeaders = { 'Content-Type': 'application/json' };
 
@@ -495,42 +539,39 @@
         // Tạo seq token chống race condition
         const currentSeq = ++requestSeq;
         isFetching = true;
-        updateOverlayContent(`<span class="memrise-helper-loading">⏳ Đang dịch: <b>"${text1}"</b>...</span>`);
+        updateOverlayContent(`<span class="memrise-helper-loading">⏳ Đang dịch: <b>"${escapeHtmlSafe(text1)}"</b>...</span>`);
 
         try {
             const data = await apiFetch({ indoText: text1, engText: text2 });
             const raw = data.result || "";
 
-            // Parser đa năng: Hỗ trợ Markdown **, HTML <b><small>, và plain text <br>
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-
+            const { doc, sanitize } = sanitizeWorkerResponseHtml(raw);
             let mainMeaning = "";
             let details = "";
 
-            const bTag = tempDiv.querySelector('b, strong');
-            const smallTag = tempDiv.querySelector('small');
+            const bTag = doc.body.querySelector('b, strong');
+            const smallTag = doc.body.querySelector('small');
 
             if (bTag) {
-                mainMeaning = bTag.innerHTML.trim();
+                mainMeaning = sanitize(bTag).replace(/<\/?(?:b|strong)>/gi, '').trim();
                 if (smallTag) {
-                    details = smallTag.innerHTML.trim();
+                    details = sanitize(smallTag).replace(/<\/?small>/gi, '').trim();
                 } else {
                     bTag.remove();
-                    details = tempDiv.innerHTML.replace(/^(\s*<br\s*\/?>)+|(\s*<br\s*\/?>)+$/gi, '').trim();
+                    details = Array.from(doc.body.childNodes).map(sanitize).join('').replace(/^(\s*<br\s*\/?>)+|(\s*<br\s*\/?>)+$/gi, '').trim();
                 }
             } else {
-                const lines = raw.split(/\n|<br\s*\/?>/i).map(s => s.trim()).filter(Boolean);
-                mainMeaning = (lines[0] || '').replace(/<[^>]+>/g, '').trim();
+                const cleanAll = Array.from(doc.body.childNodes).map(sanitize).join('');
+                const lines = cleanAll.split(/\n|<br\s*\/?>/i).map(s => s.trim()).filter(Boolean);
+                mainMeaning = (lines[0] || '').trim();
                 details = lines.slice(1).join('<br>').trim();
             }
 
             const finalHtml = `
-                <div class="overlay-main-meaning">${mainMeaning || text1}</div>
+                <div class="overlay-main-meaning">${mainMeaning || escapeHtmlSafe(text1)}</div>
                 ${details ? `<div class="overlay-sub-detail">${details}</div>` : ''}
             `;
 
-            // Chỉ cập nhật nếu đây vẫn là request mới nhất (chống race condition)
             if (currentSeq === requestSeq) {
                 translateCache[currentKey] = finalHtml;
                 lastTranslatedKey = currentKey;
@@ -539,7 +580,7 @@
         } catch (e) {
             console.error("[Memrise AI Helper]", e);
             if (currentSeq === requestSeq) {
-                updateOverlayContent(`<span style="color:#d63031; font-size:12px">⚠️ Lỗi: ${e.message}</span>`);
+                updateOverlayContent(`<span style="color:#d63031; font-size:12px">⚠️ Lỗi: ${escapeHtmlSafe(e.message)}</span>`);
             }
         } finally {
             if (currentSeq === requestSeq) {
@@ -549,11 +590,23 @@
     }
 
     // ==================== MUTATION OBSERVER ====================
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
         if (!isExtensionActive || isPickingMode) return;
+        const onlyOwnUi = mutations.every(m => {
+            const t = m.target;
+            return t && t.closest && (
+                t.closest('#memrise-helper-overlay') ||
+                t.closest('#memrise-helper-fab') ||
+                t.closest('#memrise-picker-menu') ||
+                t.closest('#memrise-config-modal')
+            );
+        });
+        if (onlyOwnUi) return;
         scheduleTranslate(350);
     });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+    if (document.body) {
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
 
     // ==================== OVERLAY & FAB UI ====================
     function toggleOverlayDisplay(shouldShow) {
@@ -644,6 +697,10 @@
     }
 
     function makeDraggable(element) {
+        if (overlayDragCleanup) {
+            overlayDragCleanup();
+            overlayDragCleanup = null;
+        }
         const header = element.querySelector('.overlay-header');
         let isDragging = false, offsetX = 0, offsetY = 0;
 
@@ -655,13 +712,12 @@
             element.style.cursor = 'grabbing';
         });
 
-        document.addEventListener('mousemove', (e) => {
+        const onMouseMove = (e) => {
             if (!isDragging) return;
             e.preventDefault();
             let left = e.clientX - offsetX;
             let top = e.clientY - offsetY;
 
-            // Giới hạn trong màn hình
             left = Math.max(10, Math.min(window.innerWidth - element.offsetWidth - 10, left));
             top = Math.max(10, Math.min(window.innerHeight - element.offsetHeight - 10, top));
 
@@ -669,9 +725,9 @@
             element.style.top = `${top}px`;
             element.style.right = 'auto';
             element.style.bottom = 'auto';
-        });
+        };
 
-        document.addEventListener('mouseup', () => {
+        const onMouseUp = () => {
             if (isDragging) {
                 isDragging = false;
                 element.style.cursor = 'default';
@@ -681,17 +737,29 @@
                 cachedWinPos.height = element.style.height;
                 saveWinPos();
             }
-        });
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        overlayDragCleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }
 
     function makeResizable(element) {
-        new ResizeObserver(() => {
+        if (overlayResizeObserver) {
+            overlayResizeObserver.disconnect();
+            overlayResizeObserver = null;
+        }
+        overlayResizeObserver = new ResizeObserver(() => {
             if (!element.classList.contains('hidden')) {
                 cachedWinPos.width = element.style.width;
                 cachedWinPos.height = element.style.height;
                 saveWinPos();
             }
-        }).observe(element);
+        });
+        overlayResizeObserver.observe(element);
     }
 
     function updateOverlayContent(html) {
@@ -747,17 +815,18 @@
     }, true);
 
     function generateSmartSelector(el) {
+        const esc = (s) => (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, '\\$&');
         let node = el;
         let containerFallback = null;
 
         while (node && node !== document.body) {
             const testId = node.getAttribute('data-testid');
-            if (testId && !testId.includes(' ')) return `[data-testid="${testId}"]`;
+            if (testId && !testId.includes(' ')) return `[data-testid="${esc(testId)}"]`;
 
             const test = node.getAttribute('data-test');
             if (test) {
-                if (!test.includes(' ')) return `[data-test="${test}"]`;
-                else if (!containerFallback) containerFallback = `[data-test="${test}"]`;
+                if (!test.includes(' ')) return `[data-test="${esc(test)}"]`;
+                else if (!containerFallback) containerFallback = `[data-test="${esc(test)}"]`;
             }
             node = node.parentElement;
         }
@@ -765,13 +834,13 @@
         if (containerFallback) return containerFallback;
 
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-            if (el.getAttribute('placeholder')) return `${el.tagName.toLowerCase()}[placeholder="${el.getAttribute('placeholder')}"]`;
+            if (el.getAttribute('placeholder')) return `${el.tagName.toLowerCase()}[placeholder="${esc(el.getAttribute('placeholder'))}"]`;
         }
 
         let validClass = "";
         if (el.className && typeof el.className === 'string') {
             const classes = el.className.split(/\s+/).filter(c => c.length > 2 && !/\d/.test(c) && !/^sc-/.test(c));
-            if (classes.length) validClass = "." + classes.join('.');
+            if (classes.length) validClass = "." + classes.map(esc).join('.');
         }
 
         if (validClass) return `${el.tagName.toLowerCase()}${validClass}`;
@@ -788,11 +857,12 @@
         menu.style.top = posY + 'px';
         menu.style.left = posX + 'px';
         menu.innerHTML = `
-            <div style="margin-bottom:6px; color:#bdc3c7; font-size:11px;">Selector: <b>${tempElementSelector.substring(0, 26)}...</b></div>
+            <div style="margin-bottom:6px; color:#bdc3c7; font-size:11px;">Selector: <b id="memrise-picker-sel-text"></b></div>
             <button id="btn-pick-single" class="memrise-picker-btn">✅ Lưu phần tử này</button>
             <button id="btn-pick-pair" class="memrise-picker-btn secondary">🔗 Chọn thêm câu phụ</button>
             <button id="btn-pick-cancel" class="memrise-picker-btn secondary" style="background:#d63031">❌ Hủy</button>
         `;
+        menu.querySelector('#memrise-picker-sel-text').textContent = String(tempElementSelector || '').substring(0, 26) + '...';
         document.body.appendChild(menu);
 
         document.getElementById('btn-pick-single').onclick = () => {
@@ -868,7 +938,7 @@
             <div class="divider"></div>
             <div class="input-group">
                 <label class="field-label" for="modal-url">Cloudflare Worker API URL</label>
-                <input id="modal-url" type="text" placeholder="https://..." value="${workerUrl}">
+                <input id="modal-url" type="text" placeholder="https://...">
             </div>
             <button id="modal-saveBtn">💾 Lưu Cấu Hình</button>
             <div class="divider"></div>
@@ -878,6 +948,7 @@
         `;
         document.body.appendChild(modal);
 
+        document.getElementById('modal-url').value = workerUrl;
         document.getElementById('modal-activeToggle').checked = isExtensionActive;
 
         // Bật/tắt trạng thái
@@ -892,9 +963,13 @@
             }
         });
 
-        // Lưu URL
+        // Lưu URL (chỉ cho phép HTTPS)
         document.getElementById('modal-saveBtn').addEventListener('click', () => {
             const inputVal = document.getElementById('modal-url').value.trim();
+            if (inputVal && !isValidHttpsUrl(inputVal)) {
+                alert('Vui lòng nhập URL HTTPS hợp lệ (https://...)!');
+                return;
+            }
             workerUrl = inputVal || DEFAULT_WORKER_URL;
             GM_setValue('workerUrl', workerUrl);
             const btn = document.getElementById('modal-saveBtn');
